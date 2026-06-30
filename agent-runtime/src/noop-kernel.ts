@@ -37,6 +37,7 @@ export class NoopKernel implements AgentKernel {
     thinking: false,
     toolCalls: false,
     midTurnInject: false,
+    forkExtract: false,
   };
 
   private readonly echo: boolean;

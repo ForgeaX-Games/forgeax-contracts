@@ -60,6 +60,15 @@ export interface KernelCapabilities {
   /** Can inject context mid-turn. Rented kernels = false (only between-turn L1 +
    *  veto-only L2 at the tool boundary; see 设计稿 §1.3 L2 既定仅否决式). */
   midTurnInject: boolean;
+  /** Can perform a **cache-safe fork extraction**: re-issue this turn's request
+   *  to itself with the prompt-cache prefix (system+tools+messages) reused and a
+   *  single appended instruction, so background memory extraction rides cache-read.
+   *  Drives the orchestration layer's cache-warm-vs-cold-fallback choice and the
+   *  Studio "saves tokens?" tip. Native forgeax-core = true (runForkedAgent);
+   *  claude-code = true (its own extractMemories fork); codex/rented w/o a fork
+   *  primitive = false (orchestration falls back to a cold extraction, §9).
+   *  Absent in older kernels ⇒ treat as false. Additive (frozen-allowed). */
+  forkExtract: boolean;
 }
 
 // ─── turn inputs ─────────────────────────────────────────────────────
@@ -203,6 +212,16 @@ export interface TurnRequest {
   requestPermission?(call: PermissionCall): Promise<PermissionDecision>;
   /** Fire-and-forget lifecycle injection (PreToolUse/PostToolUse/turnEnd). */
   hooks?: HookEndpoint;
+  /** Memory autonomy switch (auto-memory ownership). When the orchestration layer
+   *  owns memory (e.g. the soul / digital-life engine grows layered memory itself),
+   *  it sets `false` so the kernel does NOT run its own autonomous auto-memory
+   *  (no self-directed extract-to-its-own-store) — preventing double extraction,
+   *  duplicate cost, and two conflicting sources of truth. The kernel's fork-extract
+   *  MECHANISM stays available to be DRIVEN by the orchestration layer (it is not a
+   *  memory write of the kernel's own volition). Absent ⇒ kernel keeps its own
+   *  default (backward-compatible; native forgeax-core has no autonomous memory).
+   *  Additive (frozen-allowed). */
+  memoryAutonomy?: boolean;
 }
 
 // ─── permission gate ─────────────────────────────────────────────────
@@ -338,6 +357,45 @@ export interface AgentKernel {
   /** Optional teardown — kernels holding subprocess/sidecar handles release
    *  them here. */
   shutdown?(): Promise<void>;
+  /** Optional **cache-safe fork extraction** (capability `forkExtract`). The
+   *  orchestration layer (e.g. the soul / digital-life engine) drives a background
+   *  memory-extraction pass that REUSES this turn's prompt-cache prefix: the kernel
+   *  re-issues the same system+tools+history with a single appended instruction,
+   *  so the extraction rides cache-read. Tool execution is gated to `allowedTools`
+   *  (memory-write tools only) — the tool LIST stays identical to keep the cache
+   *  key intact. Returns what the fork did (no main-loop events emitted; the fork
+   *  does not pollute the conversation transcript). Absent ⇒ the orchestration layer
+   *  falls back to its own cold extraction (§9 graceful degradation). */
+  forkExtract?(req: ForkExtractRequest, signal: AbortSignal): Promise<ForkExtractResult>;
+}
+
+/** Input for `AgentKernel.forkExtract`. Mirrors the cache-relevant fields of the
+ *  prior `TurnRequest` (systemPrompt + tools + history) so the fork reproduces the
+ *  cached prefix; `instruction` is the single appended user message; `allowedTools`
+ *  whitelists which tool names the fork may actually invoke. */
+export interface ForkExtractRequest {
+  session: SessionRef;
+  /** Same systemPrompt (charter+persona) as the prior turn → matching cache prefix. */
+  systemPrompt: ComposedPrompt;
+  /** Post-turn conversation history (the cached prefix to reuse). */
+  history?: TurnMessage[];
+  /** Same tools as the prior turn (tools are part of the cache key — keep identical). */
+  tools: ToolSpec[];
+  model?: ModelRef;
+  /** The single appended user instruction (the extraction prompt). */
+  instruction: string;
+  /** Whitelist of tool names the fork may execute (e.g. the memory-write tools).
+   *  Others are denied at call time without changing the advertised tool list. */
+  allowedTools: string[];
+  hostSessionId?: string;
+}
+
+export interface ForkExtractResult {
+  ok: boolean;
+  /** Number of (allowed) tool invocations the fork made — a proxy for "memories written". */
+  toolCalls: number;
+  /** file_path values of any Write/Edit the fork performed (flat-file kernels). */
+  writtenPaths: string[];
 }
 
 // ─── in-process kernel registry ──────────────────────────────────────
