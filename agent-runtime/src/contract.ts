@@ -337,6 +337,37 @@ export interface TurnHandle {
   cancel(): Promise<void>;
 }
 
+// ─── model catalog (optional capability) ─────────────────────────────
+//
+// Which models a kernel can run is the KERNEL's truth, not the orchestration
+// layer's. Two optional members on AgentKernel express it; the orchestration
+// resolver (cli `kernel/model-catalog.ts`) falls through: env override →
+// listModels() → last-known disk cache → fallbackModels → empty ('none').
+// Every kernel that can really ask its backend implements listModels —
+// uniformly, whatever the transport (CLI flag, stream-json control protocol,
+// JSON-RPC, HTTP). All additive (frozen-allowed, same posture as `forkExtract?`).
+
+/** One model a kernel advertises. `id` is the kernel-native model id the
+ *  orchestration layer passes back verbatim via `TurnRequest.model`. */
+export interface KernelModelInfo {
+  id: string;
+  label?: string;
+  reasoning?: boolean;
+  /** Input modalities, e.g. ['text','image']. */
+  input?: string[];
+  contextWindow?: number;
+}
+
+/** Result of model-catalog resolution. `source` reports WHICH fallback tier
+ *  produced the list, honestly — UI renders a badge / empty state from it. */
+export interface KernelModelCatalog {
+  models: KernelModelInfo[];
+  source: 'env' | 'kernel' | 'last-known' | 'static' | 'none';
+  /** Upstream failure detail, kept even when a lower tier succeeded
+   *  (degradation is visible, not silent — §9). */
+  error?: string;
+}
+
 /** The single slot the orchestration layer programs against. One
  *  implementation in phase 1 (BcKernel); forgeax-core is the
  *  second slot (P7). Swapping kernels swaps only this implementation —
@@ -344,6 +375,8 @@ export interface TurnHandle {
 export interface AgentKernel {
   readonly id: KernelId;
   readonly capabilities: KernelCapabilities;
+  /** Human-facing name for picker rows / driver labels. Absent ⇒ UI shows `id`. */
+  readonly displayName?: string;
   /** Run one turn. `usage` MUST be emitted before `turn.done`, including on
    *  cancelled/error paths (best-effort fields), so budget/cascade
    *  accounting never drops a turn (B5). */
@@ -367,6 +400,15 @@ export interface AgentKernel {
    *  does not pollute the conversation transcript). Absent ⇒ the orchestration layer
    *  falls back to its own cold extraction (§9 graceful degradation). */
   forkExtract?(req: ForkExtractRequest, signal: AbortSignal): Promise<ForkExtractResult>;
+  /** Optional model-catalog discovery — the kernel OWNS how (spawn its CLI,
+   *  speak its control protocol / RPC, call its API, delegate to the gateway).
+   *  Absent ⇒ the orchestration resolver falls back to last-known cache →
+   *  `fallbackModels` → empty (§9 graceful degradation). */
+  listModels?(signal?: AbortSignal): Promise<KernelModelCatalog>;
+  /** Optional kernel-author-declared static fallback ids (the LAST resort
+   *  before the empty state). This is the kernel's explicit claim, not the
+   *  platform guessing — keep it out of orchestration/commands layers. */
+  readonly fallbackModels?: string[];
 }
 
 /** Input for `AgentKernel.forkExtract`. Mirrors the cache-relevant fields of the

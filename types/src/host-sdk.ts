@@ -98,6 +98,15 @@ export const ToolResultEnvelopeSchema = z.object({
  *    （AI 走 ts/js/html structured 路径不走 vision，这是它的入口）
  * --------------------------------------------------------------------------*/
 
+/** 权限分级（与编排层 trust-gate 的 Capability 8 类、interface action-registry 的
+ *  `UiCapability` 对齐）。plugin 若想让某条 surface action 被注册进 host 的
+ *  ActionRegistry（从而对 AI 可见、可 ui_invoke），必须声明本字段；缺省 = 仅供
+ *  dev overlay 观察、不进注册表（见 07-INTERFACE-EXPOSURE / todo 003 收敛）。 */
+export const SurfaceActionCapabilitySchema = z.enum([
+  'read', 'write', 'delete', 'exec', 'network', 'credential', 'delegate', 'other',
+]);
+export type SurfaceActionCapability = z.infer<typeof SurfaceActionCapabilitySchema>;
+
 export const SurfaceExposeSchema = z.object({
   ...EnvelopeBase,
   kind: z.literal('surface.expose'),
@@ -110,6 +119,12 @@ export const SurfaceExposeSchema = z.object({
       args: z.unknown().optional(),           // 当前 args 快照（schema 由 ToolSpec 描述）
       enabled: z.boolean().default(true),
       hotkey: z.string().optional(),
+      /** AI 读的说明（写清做什么 + 何时用）。仅注册进 ActionRegistry 的 action 需要。 */
+      description: z.string().optional(),
+      /** 参数契约（JSON Schema 纯对象）。缺省 = 无参数。 */
+      inputSchema: z.record(z.unknown()).optional(),
+      /** 权限分级；声明它 = 该 action 进 host ActionRegistry 对 AI 暴露。缺省 = 仅 overlay。 */
+      capability: SurfaceActionCapabilitySchema.optional(),
     }),
   ),
   /** UI 状态快照，AI 读它做决策。结构由 plugin 自定义。 */
