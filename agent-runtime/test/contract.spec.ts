@@ -4,7 +4,7 @@
  * Covers:
  *   - NoopKernel runs a turn honoring the usage-before-done invariant (B5)
  *   - abort path ends with turn.done{cancelled} and still emits usage
- *   - the 12 KernelEvent kinds are all constructible & exhaustively handled
+ *   - the KernelEvent kinds are all constructible & exhaustively handled
  *     (compile-time `never` guard mirrors `toWireEvents` M3 guard)
  *   - KernelError closed union shape
  *   - kernel registry: register/get/list/boot(init ok+broken)/shutdown
@@ -102,7 +102,7 @@ describe('NoopKernel turn', () => {
 });
 
 describe('KernelEvent union', () => {
-  // One sample of each of the 12 kinds. If a kind is renamed/removed this
+  // One sample of each kind. If a kind is renamed/removed this
   // array stops type-checking.
   const samples: KernelEvent[] = [
     { kind: 'message.delta', role: 'assistant', text: 'x' },
@@ -114,6 +114,8 @@ describe('KernelEvent union', () => {
     { kind: 'turn.done', reason: 'stop' },
     { kind: 'error', error: { code: 'protocol', message: 'bad' } },
     { kind: 'stored-event', payload: { a: 1 } },
+    { kind: 'compact_boundary', trigger: 'auto', preTokens: 120000, postTokens: 40000, coveredFrom: 0, coveredTo: 12 },
+    { kind: 'api_retry', attempt: 1, reason: '429', retryAfterMs: 2000 },
     { kind: 'x.delegation', delegator: 'forge', agentId: 'iori', brief: 'pillar' },
     { kind: 'x.file_activity', path: 'src/x.ts', op: 'write' },
     { kind: 'x.perception', source: 'console', payload: { err: 'boom' } },
@@ -123,10 +125,10 @@ describe('KernelEvent union', () => {
     { kind: 'x.subagent.done', agentId: 'iori', reason: 'stop', turns: 3, toolCalls: 4 },
   ];
 
-  it('constructs all 16 kinds', () => {
-    expect(samples).toHaveLength(16);
+  it('constructs all 18 kinds', () => {
+    expect(samples).toHaveLength(18);
     const kinds = new Set(samples.map((s) => s.kind));
-    expect(kinds.size).toBe(16);
+    expect(kinds.size).toBe(18);
   });
 
   it('handles every kind exhaustively (compile-time never guard)', () => {
@@ -143,6 +145,8 @@ describe('KernelEvent union', () => {
         case 'turn.done':
         case 'error':
         case 'stored-event':
+        case 'compact_boundary':
+        case 'api_retry':
         case 'x.delegation':
         case 'x.file_activity':
         case 'x.perception':

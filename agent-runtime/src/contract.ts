@@ -268,7 +268,7 @@ export type TurnDoneReason =
   | 'cancelled'
   | 'error';
 
-/** The 12-kind streamed event union. The trailing `x.*` extensions are
+/** The streamed event union. The trailing `x.*` extensions are
  *  injected by the orchestration layer and DROPPED by the rented-kernel exporter
  *  (they have no native representation). */
 export type KernelEvent =
@@ -289,6 +289,26 @@ export type KernelEvent =
   | { kind: 'turn.done'; reason: TurnDoneReason }
   | { kind: 'error'; error: KernelError }
   | { kind: 'stored-event'; payload: Record<string, unknown> }
+  // ─── observability (T5, additive; native kernels may emit, hosts that don't
+  //     recognize the kind simply ignore it — no wire rename in toWireEvents) ───
+  /** Context compaction just occurred. `preTokens`/`postTokens` are estimated
+   *  conversation-token counts before/after the compaction; `trigger` names why it
+   *  fired (e.g. 'auto' / 'manual' / 'pre-message'); `coveredFrom`/`coveredTo` are
+   *  the compacted message range (conversation indices). Token fields are optional
+   *  (a kernel that cannot estimate them omits them). */
+  | {
+      kind: 'compact_boundary';
+      trigger?: string;
+      preTokens?: number;
+      postTokens?: number;
+      coveredFrom: number;
+      coveredTo: number;
+    }
+  /** An upstream API call is about to be retried. `attempt` is the 1-based number
+   *  of the attempt that just failed (the retry is attempt+1); `reason` names the
+   *  cause (e.g. '429' / '529' / '500' / 'overloaded' / 'stream_idle');
+   *  `retryAfterMs` is the server-advised backoff when present. */
+  | { kind: 'api_retry'; attempt: number; reason: string; retryAfterMs?: number }
   // forgeax extensions (orchestration-injected; rented-kernel exporter discards):
   | { kind: 'x.delegation'; delegator: string; agentId: string; brief: string }
   | { kind: 'x.file_activity'; path: string; op: 'write' | 'read' | 'create' }
@@ -409,6 +429,20 @@ export interface AgentKernel {
    *  before the empty state). This is the kernel's explicit claim, not the
    *  platform guessing — keep it out of orchestration/commands layers. */
   readonly fallbackModels?: string[];
+  /** Optional **stateful subagent resume** (capability `subagentResume`). A prior
+   *  `runTurn` may have dispatched a subagent that persisted its transcript to the
+   *  kernel's append-only event store, surfacing a stable `agentId` (carried on the
+   *  `x.subagent.*` events). This re-opens that subagent BY THAT id: the kernel folds
+   *  the persisted transcript back into context and continues it with `prompt`, so the
+   *  resumed worker sees its prior history. Streams the resumed run as `KernelEvent`s
+   *  (the subagent's `x.subagent.*` lifecycle + a final `message.delta` result +
+   *  `turn.usage`/`turn.done`). Aligned with the event-log APPEND model (OpenAI Agents
+   *  SDK Sessions: get/add) — a resume APPENDS a new turn to the same log, it does NOT
+   *  restore a state snapshot, so the store stays the single source of truth (SSOT).
+   *  Absent ⇒ the kernel keeps subagents in-memory only (no addressable resume); a
+   *  host requiring resume must configure a persistent subagent store. Additive
+   *  (frozen-allowed). */
+  resumeSubagent?(agentId: string, prompt: string, signal: AbortSignal): AsyncIterable<KernelEvent>;
 }
 
 /** Input for `AgentKernel.forkExtract`. Mirrors the cache-relevant fields of the
