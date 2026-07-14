@@ -12,7 +12,9 @@
     "./skill": "./src/skill.ts",
     "./tool": "./src/tool.ts",
     "./host-sdk": "./src/host-sdk.ts",
-    "./observability": "./src/observability.ts"
+    "./observability": "./src/observability.ts",
+    "./permission-rules": "./src/permission-rules.ts",
+    "./shell-split": "./src/shell-split.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

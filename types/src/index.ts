@@ -14,3 +14,5 @@ export * from './host-sdk';
 export * from './persona-capability-surface';
 export * from './observability';
 export * from './memory-switch';
+export * from './permission-rules';
+export * from './shell-split';
