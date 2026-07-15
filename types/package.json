@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Shared zod schemas + TS contracts for forgeax-plugin.json, agent/skill/tool/host-sdk. Single source of truth for plugin manifest validation across server / interface / cli.",
+  "description": "Shared zod schemas + TS contracts for forgeax-extension.json, agent/skill/tool/host-sdk. Single source of truth for ExtensionManifest validation across server / interface / cli.",
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
@@ -14,8 +14,7 @@
     "./host-sdk": "./src/host-sdk.ts",
     "./observability": "./src/observability.ts",
     "./permission-rules": "./src/permission-rules.ts",
-    "./shell-split": "./src/shell-split.ts",
-    "./plugin-layout": "./src/plugin-layout.ts"
+    "./shell-split": "./src/shell-split.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

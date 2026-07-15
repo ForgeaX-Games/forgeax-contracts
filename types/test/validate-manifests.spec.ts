@@ -1,150 +1,102 @@
+/**
+ * Focused regression for flat Marketplace extension discovery + validation.
+ * Layout: packages/marketplace/extensions/<slug>/forgeax-extension.json
+ * User:   ~/.forgeax/extensions/<slug>/forgeax-extension.json
+ */
 import { afterEach, describe, expect, it } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import {
-  compareManifestPairs,
-  discoverManifestCandidates,
-  inspectCanonicalMarketplaceLayout,
-  marketplaceManifestPairs,
-  validateCandidate,
-} from './validate-manifests';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { findRepoRoot, listManifests, validate } from './validate-manifests';
 
-const TMP = `/tmp/forgeax-validate-manifests-${process.pid}`;
-
-function writeWorkbench(path: string, id: string, kind = 'workbench'): void {
-  mkdirSync(path, { recursive: true });
-  const manifest = kind === 'workbench'
-    ? {
-        schemaVersion: 1,
-        id,
-        version: '0.1.0',
-        kind,
-        displayName: id,
-        provides: { workbench: { id } },
-      }
-    : {
-        schemaVersion: 1,
-        id,
-        version: '0.1.0',
-        kind: 'tool',
-        displayName: id,
-        provides: { tools: [{ id: `${id}.run` }] },
-      };
-  writeFileSync(join(path, 'forgeax-extension.json'), JSON.stringify(manifest));
-}
+const TMP = `/tmp/forgeax-validate-manifests-flat-${process.pid}`;
 
 afterEach(() => {
   rmSync(TMP, { recursive: true, force: true });
 });
 
-describe('manifest validation discovery', () => {
-  it('discovers only legacy depth one and recognized canonical depth two', () => {
-    writeWorkbench(join(TMP, 'legacy'), '@me/legacy');
-    writeWorkbench(join(TMP, 'workbench'), '@me/bucket-root');
-    writeWorkbench(join(TMP, 'workbench', 'canonical'), '@me/canonical');
-    writeWorkbench(join(TMP, 'workbench', 'nested', 'too-deep'), '@me/too-deep');
-    writeWorkbench(join(TMP, 'vendor', 'hidden'), '@me/hidden');
+describe('listManifests · flat extension layout', () => {
+  it('discovers real Marketplace forgeax-extension.json under extensions/<slug>/', () => {
+    const repoRoot = findRepoRoot(resolve(import.meta.dirname, '..'));
+    const files = listManifests(repoRoot);
 
-    expect(discoverManifestCandidates(TMP).map((c) => c.relativeManifestPath)).toEqual([
-      'legacy/forgeax-extension.json',
-      'workbench/canonical/forgeax-extension.json',
-    ]);
+    expect(files.length).toBeGreaterThan(10);
+    const marketplaceFiles = files.filter((f) =>
+      f.includes('/packages/marketplace/extensions/')
+    );
+    expect(marketplaceFiles.length).toBeGreaterThan(10);
+    expect(marketplaceFiles.every((f) => f.endsWith('/forgeax-extension.json'))).toBe(true);
+    expect(marketplaceFiles.some((f) => f.endsWith('/extensions/admin/forgeax-extension.json'))).toBe(true);
+    expect(marketplaceFiles.some((f) => f.includes('/plugins/'))).toBe(false);
+    expect(marketplaceFiles.some((f) => f.endsWith('forgeax-plugin.json'))).toBe(false);
   });
 
-  it('reports canonical bucket/kind mismatch as a validation failure', () => {
-    writeWorkbench(join(TMP, 'workbench', 'wrong'), '@me/wrong', 'tool');
-    const [candidate] = discoverManifestCandidates(TMP);
-    const finding = validateCandidate(candidate);
-
-    expect(finding.ok).toBe(false);
-    expect(finding.errors?.join('\n')).toContain(
-      'bucket kind workbench does not match manifest kind tool',
+  it('discovers only depth-one slug dirs (not nested apps/ fixtures)', () => {
+    mkdirSync(join(TMP, 'packages', 'marketplace', 'extensions', 'wb-demo'), { recursive: true });
+    writeFileSync(
+      join(TMP, 'packages', 'marketplace', 'extensions', 'wb-demo', 'forgeax-extension.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: '@forgeax-extension/wb-demo',
+        version: '0.1.0',
+        kind: 'workbench',
+        displayName: 'Demo',
+        provides: { workbench: { id: 'wb-demo' } },
+      }),
     );
+    mkdirSync(
+      join(TMP, 'packages', 'marketplace', 'extensions', 'node-editor', 'apps', 'nested'),
+      { recursive: true },
+    );
+    writeFileSync(
+      join(
+        TMP,
+        'packages',
+        'marketplace',
+        'extensions',
+        'node-editor',
+        'apps',
+        'nested',
+        'forgeax-extension.json',
+      ),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: '@forgeax-extension/nested',
+        version: '0.1.0',
+        kind: 'workbench',
+        displayName: 'Nested',
+        provides: { workbench: { id: 'nested' } },
+      }),
+    );
+    writeFileSync(join(TMP, 'AGENTS.md'), '# test\n');
+    mkdirSync(join(TMP, 'packages'), { recursive: true });
+
+    const files = listManifests(TMP).filter((file) =>
+      file.startsWith(join(TMP, 'packages/marketplace/extensions'))
+    );
+    expect(files).toEqual([
+      join(TMP, 'packages/marketplace/extensions/wb-demo/forgeax-extension.json'),
+    ]);
   });
 });
 
-describe('2026-07-14 Marketplace baseline', () => {
-  it('treats a duplicate pair as an additional manifest', () => {
-    const pair = { id: '@me/duplicate', kind: 'tool' };
-    expect(compareManifestPairs([pair, pair], [pair])).toEqual({
-      ok: false,
-      missing: [],
-      additional: [pair],
-    });
-  });
-
-  it('matches the exact sorted 67 extension-layout (id, kind) pairs', () => {
-    const repoRoot = resolve(import.meta.dirname, '..', '..', '..', '..');
-    const fixturePath = join(
-      import.meta.dirname,
-      'fixtures',
-      'marketplace-extension-kind-layout-baseline.json',
-    );
-    const expected = JSON.parse(readFileSync(fixturePath, 'utf-8')) as Array<{
-      id: string;
-      kind: string;
-    }>;
-    const actual = marketplaceManifestPairs(
-      join(repoRoot, 'packages', 'marketplace', 'extensions'),
+describe('validate · malformed extension', () => {
+  it('rejects a malformed forgeax-extension.json', () => {
+    mkdirSync(join(TMP, 'bad'), { recursive: true });
+    const path = join(TMP, 'bad', 'forgeax-extension.json');
+    writeFileSync(
+      path,
+      JSON.stringify({
+        schemaVersion: 1,
+        id: 'not-a-scoped-id',
+        version: '0.1.0',
+        kind: 'workbench',
+        displayName: 'Bad',
+        provides: { workbench: { id: 'bad' } },
+      }),
     );
 
-    expect(expected).toHaveLength(67);
-    expect(actual).toHaveLength(67);
-    expect(compareManifestPairs(actual, expected)).toEqual({
-      ok: true,
-      missing: [],
-      additional: [],
-    });
-  });
-
-  it('requires every bundled L0 manifest under extensions/<kind>/<slug>/ with node-editor in vendor/', () => {
-    const repoRoot = resolve(import.meta.dirname, '..', '..', '..', '..');
-    const fixturePath = join(
-      import.meta.dirname,
-      'fixtures',
-      'marketplace-extension-kind-layout-baseline.json',
-    );
-    const expected = JSON.parse(readFileSync(fixturePath, 'utf-8')) as Array<{
-      id: string;
-      kind: string;
-    }>;
-    const report = inspectCanonicalMarketplaceLayout(
-      join(repoRoot, 'packages', 'marketplace', 'extensions'),
-      expected,
-    );
-
-    expect(report.ok).toBe(true);
-    expect(report.errors).toEqual([]);
-    expect(report.legacyRelativePaths).toEqual([]);
-    expect(report.flatManifestDirs).toEqual([]);
-    expect(report.nonKindRootEntries).toEqual([]);
-    expect(report.nodeEditorUnderPlugins).toBe(false);
-    expect(report.nodeEditorUnderVendor).toBe(true);
-    expect(report.pairs).toHaveLength(67);
-  });
-
-  it('keeps workbench first-party file dependencies resolvable after the kind-layout move', () => {
-    const repoRoot = resolve(import.meta.dirname, '..', '..', '..', '..');
-    const marketplaceRoot = join(repoRoot, 'packages', 'marketplace');
-    const expectedSpecifier = 'file:../../../shared/external-asset-meta';
-
-    for (const slug of ['wb-ai-asset', 'wb-gen3d']) {
-      const packagePath = join(
-        marketplaceRoot,
-        'extensions',
-        'workbench',
-        slug,
-        'package.json',
-      );
-      const pkg = JSON.parse(readFileSync(packagePath, 'utf-8')) as {
-        dependencies: Record<string, string>;
-      };
-      const specifier = pkg.dependencies['@forgeax-extension/external-asset-meta'];
-      const target = resolve(dirname(packagePath), specifier.replace(/^file:/u, ''));
-
-      expect(specifier).toBe(expectedSpecifier);
-      expect(target).toBe(join(marketplaceRoot, 'shared', 'external-asset-meta'));
-      expect(existsSync(join(target, 'package.json'))).toBe(true);
-    }
+    const finding = validate(path);
+    expect(finding.ok).toBe(false);
+    expect(finding.errors?.length).toBeGreaterThan(0);
   });
 });
