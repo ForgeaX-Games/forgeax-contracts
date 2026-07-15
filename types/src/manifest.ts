@@ -1,16 +1,19 @@
 /**
- * forgeax-plugin.json zod schema — single source of truth.
+ * forgeax-extension.json zod schema — single source of truth.
  *
  * 见 docs/v2-vision/architecture-evolution/03-AGENT-SKILL-PLUGIN-TRINITY.md §3
  * 「三体 manifest 合法组合 + R1/R2/R3 规则」。
  *
- * R1: 每个 plugin 只有一个主 kind。kind=workbench 可带 skills/tools，但不能
- *     带 agent；反向也成立。Discriminated union by `kind` 强制这一点。
+ * R1（ADR 0025 M4 修订）: 每个 extension 只有一个主 kind。kind=workbench 可带
+ *     skills/tools，且可附带 **provides.agents[]**（同一扩展同时贡献前端 UI 与
+ *     server 侧 agent —— ADR 0025 D1-D5 §2「一份 manifest，多个 host 各取所需」，
+ *     wb-reel 全家合并的依据）；kind=agent 仍是单数 provides.agent，不得带 workbench。
+ *     Discriminated union by `kind` 强制主 kind 唯一。
  * R2: provides.skills[] 在不同 host 里语义不同（全局 / agent-default / workbench-bound）
  *     —— loader 行为，schema 只校验形状。
- * R3: 跨 plugin SkillRef 用 `@scope/name#skillId`（在 src/skill.ts 落 SkillRefSchema）。
+ * R3: 跨 extension SkillRef 用 `@scope/name#skillId`（在 src/skill.ts 落 SkillRefSchema）。
  *
- * 这个 schema 必须接受 packages/marketplace/plugins/ 下当前 20 个真实 manifest（验收
+ * 这个 schema 必须接受 packages/marketplace/extensions/ 下全部真实 manifest（验收
  * 标准见 13-MIGRATION-ROADMAP §A1）。test/validate-manifests.ts 跑回归。
  */
 import { z } from 'zod';
@@ -23,11 +26,11 @@ import { ManifestToolEntrySchema } from './tool';
  * ==========================================================================*/
 
 // 第二段起始字符允许 `_`，用于约定俗成的 `_template` / `_archive` 等隐藏样板。
-const PluginIdSchema = z
+const ExtensionIdSchema = z
   .string()
   .min(1)
   .regex(/^@[a-z0-9][a-z0-9-]*\/[a-z0-9_][a-z0-9-_]*$/u, {
-    message: 'plugin id must be `@scope/name` (lowercase, kebab/snake; name may start with `_` for templates)',
+    message: 'extension id must be `@scope/name` (lowercase, kebab/snake; name may start with `_` for templates)',
   });
 
 const SemverLikeSchema = z.string().min(1); // 不严格校验 semver；loader 层再说
@@ -39,7 +42,7 @@ const AuthorSchema = z.object({
 });
 
 const DependencySchema = z.object({
-  id: PluginIdSchema,
+  id: ExtensionIdSchema,
   versionRange: z.string().optional(),
   optional: z.boolean().optional(),
 });
@@ -92,11 +95,12 @@ const ProvidesWorkbenchSchema = z.object({
   bus: z.object({ surfaceId: z.string().min(1) }).optional(),
   matchProduces: z.array(z.string()).optional(),
   hidden: z.boolean().optional(),
-  // Soft hint: when this workbench plugin is active, the workbench panel's
+  // Soft hint: when this workbench extension is active, the workbench panel's
   // upper-right agent picker defaults to this agent (a sub-agent panel under
   // the current session). Does NOT lock the user — they can still pick any
-  // session agent from the dropdown. R1 untouched: this is a string ref to
-  // an agent-kind plugin id, not an inline agent definition.
+  // session agent from the dropdown. Accepts an agent id (`reia`, matching a
+  // provides.agents[] entry of this or another extension) or an agent-kind
+  // extension id (`@scope/agent-x`) — the picker strips the prefix either way.
   preferredAgent: z.string().min(1).optional(),
 });
 
@@ -211,7 +215,7 @@ const EntrySchema = z.object({
 
 const ManifestBase = {
   schemaVersion: z.literal(1),
-  id: PluginIdSchema,
+  id: ExtensionIdSchema,
   version: SemverLikeSchema,
   displayName: I18nStringSchema,
   description: I18nStringSchema.optional(),
@@ -228,7 +232,7 @@ const ManifestBase = {
   compatibleWith: z.record(z.string()).optional(),
   /** GAP 5 — plugin declares which host env vars it needs.
    *  Tool handlers receive only these keys via ctx.env (any other key is
-   *  scrubbed). Default empty → no env exposed. Plugins authored against
+   *  scrubbed). Default empty → no env exposed. Extensions authored against
    *  the host SDK MUST list keys here instead of reading process.env
    *  directly. */
   requestedEnv: z.array(z.string().min(1)).optional(),
@@ -249,13 +253,17 @@ export const ManifestKindSchema = z.enum([
 
 export type ManifestKind = z.infer<typeof ManifestKindSchema>;
 
-/** kind=workbench: 必含 provides.workbench；可含 skills/tools/events；R1 禁带 agent/cliProvider/modelBinding */
+/** kind=workbench: 必含 provides.workbench；可含 skills/tools/events；R1（M4 修订）
+ *  可附带 agents[] —— 一份 manifest 同时贡献 UI（前端 host）与 agent 人格
+ *  （server host），每个条目与 kind=agent 的单数 provides.agent 同 shape，
+ *  personaFile 等相对路径以扩展根目录解析。禁带 cliProvider/modelBinding。 */
 export const WorkbenchManifestSchema = z.object({
   ...ManifestBase,
   kind: z.literal('workbench'),
   provides: z
     .object({
       workbench: ProvidesWorkbenchSchema,
+      agents: z.array(ProvidesAgentSchema).optional(),
       skills: z.array(ManifestSkillEntrySchema).optional(),
       tools: z.array(ManifestToolEntrySchema).optional(),
       events: z.array(EventDeclSchema).optional(),
@@ -338,7 +346,7 @@ export const ManifestSchema = z.discriminatedUnion('kind', [
   ToolManifestSchema,
 ]);
 
-export type PluginManifest = z.infer<typeof ManifestSchema>;
+export type ExtensionManifest = z.infer<typeof ManifestSchema>;
 export type WorkbenchManifest = z.infer<typeof WorkbenchManifestSchema>;
 export type AgentManifest = z.infer<typeof AgentManifestSchema>;
 export type SkillManifest = z.infer<typeof SkillManifestSchema>;
@@ -352,7 +360,7 @@ export type ToolManifest = z.infer<typeof ToolManifestSchema>;
 
 export interface ManifestParseResult {
   ok: boolean;
-  manifest?: PluginManifest;
+  manifest?: ExtensionManifest;
   error?: z.ZodError;
   /** 警告 — schema 通过了但有 soft issue（如缺 description）。 */
   warnings: string[];

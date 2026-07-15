@@ -48,6 +48,41 @@ describe('ManifestSchema · R1 rule (one main kind)', () => {
   });
 });
 
+describe('ManifestSchema · R1 M4 revision (workbench may carry agents[])', () => {
+  const agentEntry = {
+    id: 'reia',
+    role: 'reel-director',
+    card: { name: { zh: 'Reia', en: 'Reia' }, color: '#f5a', avatar: './agents/reia/avatar/idle.webm' },
+    personaFile: './agents/reia/persona/zh.md',
+  };
+
+  it('accepts a workbench manifest with provides.agents[] (ADR 0025 D1-D5 §2)', () => {
+    const r = ManifestSchema.safeParse({
+      ...baseValidWorkbench,
+      provides: { workbench: { id: 'wb-reel' }, agents: [agentEntry, { ...agentEntry, id: 'reel-editor', role: 'reel-editor' }] },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('agents[] entries are full ProvidesAgent shapes — missing personaFile rejects', () => {
+    const { personaFile: _omit, ...broken } = agentEntry;
+    const r = ManifestSchema.safeParse({
+      ...baseValidWorkbench,
+      provides: { workbench: { id: 'wb-reel' }, agents: [broken] },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('kind=agent still cannot carry provides.workbench (main kind stays unique)', () => {
+    const r = ManifestSchema.safeParse({
+      ...baseValidWorkbench,
+      kind: 'agent',
+      provides: { agent: agentEntry, workbench: { id: 'wb-bad' } },
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
 describe('ManifestSchema · required fields', () => {
   it('rejects missing schemaVersion', () => {
     const { schemaVersion, ...rest } = baseValidWorkbench;
