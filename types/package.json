@@ -14,7 +14,8 @@
     "./host-sdk": "./src/host-sdk.ts",
     "./observability": "./src/observability.ts",
     "./permission-rules": "./src/permission-rules.ts",
-    "./shell-split": "./src/shell-split.ts"
+    "./shell-split": "./src/shell-split.ts",
+    "./visual-generation": "./src/visual-generation.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
