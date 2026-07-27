@@ -137,6 +137,26 @@ export interface ToolSpec {
   delivery?: 'local' | 'host';
 }
 
+/** Live host-owned turn state requested by a native sidecar immediately before
+ * each provider call. `knownToolsRevision` lets the host omit an unchanged
+ * schema payload while still refreshing the small dynamic prompt suffix. */
+export interface HostTurnSnapshotRequest {
+  callId: string;
+  knownToolsRevision?: string;
+}
+
+export interface HostTurnSnapshotResponse {
+  toolsRevision: string;
+  /** Absent when `toolsRevision === knownToolsRevision`. */
+  tools?: ToolSpec[];
+  /** Current uncached host context (todos, deferred-tool manifest, etc.). */
+  dynamicSuffix?: string;
+}
+
+export type HostTurnSnapshotProvider = (
+  request: HostTurnSnapshotRequest,
+) => Promise<HostTurnSnapshotResponse>;
+
 export interface Budget {
   maxTurns?: number;
   maxTokens?: number;
@@ -173,6 +193,12 @@ export interface TurnRequest {
   systemPrompt: ComposedPrompt;
   /** Dual-delivered tools (see ToolSpec). */
   tools: ToolSpec[];
+  /** Revision of the bootstrap tool snapshot. Native sidecars use it to avoid
+   * retransmitting unchanged schemas during a live turn. */
+  toolsRevision?: string;
+  /** Require the native sidecar to refresh host-owned tools/context before
+   * provider calls. Hosts must capability-check this mode before dispatch. */
+  liveHostContext?: boolean;
   /** Tool-surface policy. Carries OPAQUE kernel-native tool names (e.g.
    *  Bash/Read/Edit/Write/Glob/Grep/WebFetch/Task/…); the spine forwards them
    *  verbatim and does NOT interpret them (same contract as `model: ModelRef`).
