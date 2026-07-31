@@ -10,7 +10,8 @@
   ],
   "scripts": {
     "typecheck": "bun -F @forgeax/types typecheck && bun -F @forgeax/agent-runtime typecheck",
-    "test": "bun -F @forgeax/types test && bun -F @forgeax/agent-runtime test"
+    "test": "bun -F @forgeax/types test && bun -F @forgeax/agent-runtime test",
+    "lint": "bun -F @forgeax/types check:npc-schema-drift"
   },
   "devDependencies": {
     "@types/bun": "^1.3.13",
