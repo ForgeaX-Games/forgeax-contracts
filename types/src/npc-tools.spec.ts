@@ -21,16 +21,46 @@ describe('NPC adoption tool contracts', () => {
       game: 'village',
       npcId: 'guide',
       soulId: 'village.guide',
+      decisionDeadline: { preset: 'patient' },
       affordances: [
         { action: 'goto', params: { target: { type: 'enum', source: 'waypoint' } } },
       ],
     } as const;
     const parsed = NPC_TOOL_CONTRACTS.npc_wire.input.parse(input);
     expect(parsed.game).toBe('village');
+    expect(parsed.decisionDeadline).toEqual({ preset: 'patient' });
     expect(parsed.affordances[0]?.params?.target).toEqual({ type: 'enum', source: 'waypoint' });
     expect(NPC_TOOL_CONTRACTS.npc_wire.input.safeParse({
       ...input,
       affordances: [{ action: 'goto', params: { target: 'enum:waypoint' } }],
+    }).success).toBe(false);
+  });
+
+  test('supports deadline presets, custom values, and the implicit default', () => {
+    const base = {
+      game: 'village',
+      npcId: 'guide',
+      soulId: 'village.guide',
+      affordances: [{ action: 'wave' }],
+    };
+    expect(NPC_TOOL_CONTRACTS.npc_wire.input.parse(base).decisionDeadline).toBeUndefined();
+    for (const preset of ['fast', 'balanced', 'patient'] as const) {
+      expect(NPC_TOOL_CONTRACTS.npc_wire.input.safeParse({
+        ...base,
+        decisionDeadline: { preset },
+      }).success).toBe(true);
+    }
+    expect(NPC_TOOL_CONTRACTS.npc_wire.input.safeParse({
+      ...base,
+      decisionDeadline: { preset: 'custom', timeoutMs: 15_000 },
+    }).success).toBe(true);
+    expect(NPC_TOOL_CONTRACTS.npc_wire.input.safeParse({
+      ...base,
+      decisionDeadline: { preset: 'custom', timeoutMs: 999 },
+    }).success).toBe(false);
+    expect(NPC_TOOL_CONTRACTS.npc_wire.input.safeParse({
+      ...base,
+      decisionDeadline: { preset: 'custom', timeoutMs: 30_001 },
     }).success).toBe(false);
   });
 

@@ -125,6 +125,10 @@ export interface ComposedPrompt {
  *  open for forward-compat. */
 export interface ToolSpec {
   name: string;
+  /** Runtime capability identity; adapters must preserve it when projecting. */
+  capabilityId?: string;
+  /** Immutable capability catalog generation used for this turn. */
+  capabilityGeneration?: number;
   description?: string;
   /** JSON-schema-ish input contract. Opaque to the spine. */
   inputSchema?: Record<string, unknown>;
@@ -196,6 +200,8 @@ export interface TurnRequest {
   /** Revision of the bootstrap tool snapshot. Native sidecars use it to avoid
    * retransmitting unchanged schemas during a live turn. */
   toolsRevision?: string;
+  /** Capability snapshot generation frozen at turn assembly time. */
+  capabilityGeneration?: number;
   /** Require the native sidecar to refresh host-owned tools/context before
    * provider calls. Hosts must capability-check this mode before dispatch. */
   liveHostContext?: boolean;
@@ -414,6 +420,25 @@ export interface KernelModelCatalog {
   error?: string;
 }
 
+/** Kernel-native capability discovery, parallel to listModels().
+ * Shared host capabilities are supplied by the orchestration catalog; this
+ * protocol is only for the tools/MCP/plugins/commands owned by the kernel. */
+export type KernelNativeCapabilityKind = 'mcp' | 'skill' | 'plugin' | 'command';
+
+export interface KernelNativeCapability {
+  kind: KernelNativeCapabilityKind;
+  id: string;
+  label?: string;
+  description?: string;
+  version?: string;
+}
+
+export interface KernelCapabilityCatalog {
+  kernelId: KernelId;
+  capabilities: KernelNativeCapability[];
+  error?: string;
+}
+
 /** The single slot the orchestration layer programs against. One
  *  implementation in phase 1 (BcKernel); forgeax-core is the
  *  second slot (P7). Swapping kernels swaps only this implementation —
@@ -451,6 +476,8 @@ export interface AgentKernel {
    *  Absent ⇒ the orchestration resolver falls back to last-known cache →
    *  `fallbackModels` → empty (§9 graceful degradation). */
   listModels?(signal?: AbortSignal): Promise<KernelModelCatalog>;
+  /** Optional native capability discovery. */
+  listCapabilities?(signal?: AbortSignal): Promise<KernelCapabilityCatalog>;
   /** Optional kernel-author-declared static fallback ids (the LAST resort
    *  before the empty state). This is the kernel's explicit claim, not the
    *  platform guessing — keep it out of orchestration/commands layers. */

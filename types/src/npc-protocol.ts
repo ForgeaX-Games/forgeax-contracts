@@ -13,6 +13,13 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 
 export const NPC_PROTOCOL_VERSION = 1 as const;
 
+export const NPC_DECISION_DEADLINE_PRESETS_MS = Object.freeze({
+  fast: 3_000,
+  balanced: 6_000,
+  patient: 12_000,
+} as const);
+export const NPC_DEFAULT_DECISION_DEADLINE_PRESET = 'balanced' as const;
+
 export const NPC_LIMITS = {
   idLength: 128,
   factLength: 200,
@@ -31,6 +38,8 @@ export const NPC_LIMITS = {
   maxUtteranceLines: 3,
   maxEmotionTargets: 16,
   maxIntentTtlSec: 300,
+  minDecisionDeadlineMs: 1_000,
+  maxDecisionDeadlineMs: 30_000,
   maxResumeReplay: 1024,
   maxSessionNpcs: 128,
   maxBatchSize: 64,
@@ -201,11 +210,40 @@ export const NpcDecisionWire = z
   .strict();
 export type NpcDecisionWire = z.infer<typeof NpcDecisionWire>;
 
+/**
+ * Per-NPC upper bound for one Brain decision. This is not an intent TTL: it
+ * limits how long the Brain may decide before falling back, while intent TTL
+ * starts only after the game receives a decision.
+ */
+export const NpcDecisionDeadline = z.discriminatedUnion('preset', [
+  z.object({ preset: z.literal('fast') }).strict(),
+  z.object({ preset: z.literal('balanced') }).strict(),
+  z.object({ preset: z.literal('patient') }).strict(),
+  z.object({
+    preset: z.literal('custom'),
+    timeoutMs: z
+      .number()
+      .int()
+      .min(NPC_LIMITS.minDecisionDeadlineMs)
+      .max(NPC_LIMITS.maxDecisionDeadlineMs),
+  }).strict(),
+]);
+export type NpcDecisionDeadline = z.infer<typeof NpcDecisionDeadline>;
+
+export function resolveNpcDecisionDeadlineMs(
+  deadline?: NpcDecisionDeadline,
+): number {
+  if (!deadline) return NPC_DECISION_DEADLINE_PRESETS_MS[NPC_DEFAULT_DECISION_DEADLINE_PRESET];
+  if (deadline.preset === 'custom') return deadline.timeoutMs;
+  return NPC_DECISION_DEADLINE_PRESETS_MS[deadline.preset];
+}
+
 /** A game-owned NPC identity bound to a reusable producer-owned Soul pack. */
 export const NpcSoulBinding = z
   .object({
     npcId: BoundedId,
     soulId: BoundedId.optional(),
+    decisionDeadline: NpcDecisionDeadline.optional(),
   })
   .strict();
 export type NpcSoulBinding = z.infer<typeof NpcSoulBinding>;
@@ -219,6 +257,12 @@ export const NpcLoadedSoulBinding = z
     npcId: BoundedId,
     soulId: BoundedId,
     trustTier: TrustTier,
+    /** Server-resolved deadline after defaults and host clamps. */
+    decisionTimeoutMs: z
+      .number()
+      .int()
+      .min(NPC_LIMITS.minDecisionDeadlineMs)
+      .max(NPC_LIMITS.maxDecisionDeadlineMs),
   })
   .strict();
 export type NpcLoadedSoulBinding = z.infer<typeof NpcLoadedSoulBinding>;
@@ -549,6 +593,7 @@ export const affordanceParamSchema = AffordanceParam;
 export const affordanceSchema = Affordance;
 export const perceptionSnapshotSchema = PerceptionSnapshot;
 export const npcDecisionWireSchema = NpcDecisionWire;
+export const npcDecisionDeadlineSchema = NpcDecisionDeadline;
 export const npcSoulBindingSchema = NpcSoulBinding;
 export const npcSessionRequestSchema = NpcSessionRequest;
 export const npcSessionGrantSchema = NpcSessionGrant;
@@ -576,6 +621,9 @@ export const parsePerceptionSnapshot = (value: unknown): PerceptionSnapshot =>
 export const safeParsePerceptionSnapshot = (value: unknown) => PerceptionSnapshot.safeParse(value);
 export const parseNpcDecisionWire = (value: unknown): NpcDecisionWire => NpcDecisionWire.parse(value);
 export const safeParseNpcDecisionWire = (value: unknown) => NpcDecisionWire.safeParse(value);
+export const parseNpcDecisionDeadline = (value: unknown): NpcDecisionDeadline =>
+  NpcDecisionDeadline.parse(value);
+export const safeParseNpcDecisionDeadline = (value: unknown) => NpcDecisionDeadline.safeParse(value);
 export const parseNpcSoulBinding = (value: unknown): NpcSoulBinding => NpcSoulBinding.parse(value);
 export const safeParseNpcSoulBinding = (value: unknown) => NpcSoulBinding.safeParse(value);
 export const parseNpcSessionRequest = (value: unknown): NpcSessionRequest => NpcSessionRequest.parse(value);
@@ -632,6 +680,7 @@ function jsonSchemaOf(schema: z.ZodTypeAny, name: string): Record<string, unknow
 export const npcJsonSchemas = Object.freeze({
   perceptionSnapshot: jsonSchemaOf(PerceptionSnapshot, 'PerceptionSnapshot'),
   decisionWire: jsonSchemaOf(NpcDecisionWire, 'NpcDecisionWire'),
+  decisionDeadline: jsonSchemaOf(NpcDecisionDeadline, 'NpcDecisionDeadline'),
   soulBinding: jsonSchemaOf(NpcSoulBinding, 'NpcSoulBinding'),
   sessionRequest: jsonSchemaOf(NpcSessionRequest, 'NpcSessionRequest'),
   sessionGrant: jsonSchemaOf(NpcSessionGrant, 'NpcSessionGrant'),

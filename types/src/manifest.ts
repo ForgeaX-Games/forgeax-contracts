@@ -20,6 +20,11 @@ import { z } from 'zod';
 import { I18nStringSchema } from './i18n';
 import { ManifestSkillEntrySchema } from './skill';
 import { ManifestToolEntrySchema } from './tool';
+import {
+  ManifestCommandCapabilitySchema,
+  ManifestMcpCapabilitySchema,
+  ManifestMemoryCapabilitySchema,
+} from './capability';
 
 /* ============================================================================
  * Common building blocks
@@ -181,6 +186,12 @@ const ProvidesSurfaceSchema = z.object({
   actions: z.array(SurfaceActionSchema).optional(),
 });
 
+const ProvidesSharedCapabilitiesSchema = {
+  commands: z.array(ManifestCommandCapabilitySchema).optional(),
+  mcp: z.array(ManifestMcpCapabilitySchema).optional(),
+  memory: z.array(ManifestMemoryCapabilitySchema).optional(),
+};
+
 /* ============================================================================
  * Entry points
  * ==========================================================================*/
@@ -268,6 +279,7 @@ export const WorkbenchManifestSchema = z.object({
       tools: z.array(ManifestToolEntrySchema).optional(),
       events: z.array(EventDeclSchema).optional(),
       surfaces: z.array(ProvidesSurfaceSchema).optional(),
+      ...ProvidesSharedCapabilitiesSchema,
     })
     .strict(),
 });
@@ -283,6 +295,7 @@ export const AgentManifestSchema = z.object({
       tools: z.array(ManifestToolEntrySchema).optional(),
       events: z.array(EventDeclSchema).optional(),
       surfaces: z.array(ProvidesSurfaceSchema).optional(),
+      ...ProvidesSharedCapabilitiesSchema,
     })
     .strict(),
 });
@@ -297,6 +310,7 @@ export const SkillManifestSchema = z.object({
       tools: z.array(ManifestToolEntrySchema).optional(),
       events: z.array(EventDeclSchema).optional(),
       surfaces: z.array(ProvidesSurfaceSchema).optional(),
+      ...ProvidesSharedCapabilitiesSchema,
     })
     .strict(),
 });
@@ -332,6 +346,7 @@ export const ToolManifestSchema = z.object({
       tools: z.array(ManifestToolEntrySchema).min(1),
       events: z.array(EventDeclSchema).optional(),
       surfaces: z.array(ProvidesSurfaceSchema).optional(),
+      ...ProvidesSharedCapabilitiesSchema,
     })
     .strict(),
 });

@@ -3,6 +3,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
   Affordance,
   NPC_LIMITS,
+  NpcDecisionDeadline,
 } from './npc-protocol';
 
 const SoulCreateInput = z
@@ -30,6 +31,7 @@ const NpcWireInput = z
     game: z.string().min(1).max(NPC_LIMITS.idLength).regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u),
     npcId: z.string().min(1).max(NPC_LIMITS.idLength).regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u),
     soulId: z.string().min(1).max(NPC_LIMITS.idLength).regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/u),
+    decisionDeadline: NpcDecisionDeadline.optional(),
     affordances: z.array(Affordance).min(1).max(NPC_LIMITS.maxAffordances),
   })
   .strict();

@@ -18,7 +18,8 @@
     "./visual-generation": "./src/visual-generation.ts",
     "./npc-protocol": "./src/npc-protocol.ts",
     "./npc-tools": "./src/npc-tools.ts",
-    "./schemas/npc/*": "./schemas/npc/*"
+    "./schemas/npc/*": "./schemas/npc/*",
+    "./capability": "./src/capability.ts"
   },
   "files": [
     "src",

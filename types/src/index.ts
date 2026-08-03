@@ -20,3 +20,4 @@ export * from './visual-generation';
 export * from './ledger-blob';
 export * from './npc-protocol';
 export * from './npc-tools';
+export * from './capability';

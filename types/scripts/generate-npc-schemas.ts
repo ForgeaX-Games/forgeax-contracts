@@ -9,6 +9,7 @@ const schemaRoot = process.env.NPC_SCHEMA_OUTPUT_DIR ?? join(packageRoot, 'schem
 
 const schemas = {
   'budget-state.schema.json': npcJsonSchemas.budgetState,
+  'decision-deadline.schema.json': npcJsonSchemas.decisionDeadline,
   'decision-wire.schema.json': npcJsonSchemas.decisionWire,
   'episode-summary.schema.json': npcJsonSchemas.episodeSummary,
   'perception-snapshot.schema.json': npcJsonSchemas.perceptionSnapshot,

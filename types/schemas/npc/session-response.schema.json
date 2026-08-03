@@ -54,12 +54,18 @@
                       "own",
                       "imported"
                     ]
+                  },
+                  "decisionTimeoutMs": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 30000
                   }
                 },
                 "required": [
                   "npcId",
                   "soulId",
-                  "trustTier"
+                  "trustTier",
+                  "decisionTimeoutMs"
                 ],
                 "additionalProperties": false
               },

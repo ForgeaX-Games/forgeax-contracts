@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   NPC_LIMITS,
+  NPC_DECISION_DEADLINE_PRESETS_MS,
   NPC_PROTOCOL_VERSION,
   Affordance,
   NpcDecisionWire,
@@ -15,6 +16,7 @@ import {
   parseNpcAttachFrame,
   parseNpcBudgetFrame,
   parseNpcDecisionFrame,
+  parseNpcDecisionDeadline,
   parseNpcDecisionsFrame,
   parseNpcDecisionWire,
   parseNpcDetachFrame,
@@ -28,7 +30,9 @@ import {
   parseNpcSnapshotsFrame,
   parseNpcWireEnvelope,
   parsePerceptionSnapshot,
+  resolveNpcDecisionDeadlineMs,
   safeParseNpcDecisionFrame,
+  safeParseNpcDecisionDeadline,
   safeParseNpcDecisionWire,
   safeParseNpcHeartbeatFrame,
   safeParseNpcWireEnvelope,
@@ -162,6 +166,28 @@ describe('NPC protocol version', () => {
     expect(isSupportedNpcProtocolVersion(NPC_PROTOCOL_VERSION)).toBe(true);
     expect(isSupportedNpcProtocolVersion(NPC_PROTOCOL_VERSION + 1)).toBe(false);
     expect(isSupportedNpcProtocolVersion('1')).toBe(false);
+  });
+});
+
+describe('NPC decision deadline', () => {
+  test('resolves the implicit default, presets, and custom deadline', () => {
+    expect(resolveNpcDecisionDeadlineMs()).toBe(NPC_DECISION_DEADLINE_PRESETS_MS.balanced);
+    expect(resolveNpcDecisionDeadlineMs(parseNpcDecisionDeadline({ preset: 'fast' })))
+      .toBe(NPC_DECISION_DEADLINE_PRESETS_MS.fast);
+    expect(resolveNpcDecisionDeadlineMs(parseNpcDecisionDeadline({ preset: 'patient' })))
+      .toBe(NPC_DECISION_DEADLINE_PRESETS_MS.patient);
+    expect(resolveNpcDecisionDeadlineMs(parseNpcDecisionDeadline({
+      preset: 'custom',
+      timeoutMs: 15_000,
+    }))).toBe(15_000);
+  });
+
+  test('rejects ambiguous and out-of-range deadline configuration', () => {
+    expect(safeParseNpcDecisionDeadline({ preset: 'balanced', timeoutMs: 7_000 }).success).toBe(false);
+    expect(safeParseNpcDecisionDeadline({ preset: 'custom' }).success).toBe(false);
+    expect(safeParseNpcDecisionDeadline({ preset: 'custom', timeoutMs: 999 }).success).toBe(false);
+    expect(safeParseNpcDecisionDeadline({ preset: 'custom', timeoutMs: 30_001 }).success).toBe(false);
+    expect(safeParseNpcDecisionDeadline({ preset: 'slow' }).success).toBe(false);
   });
 });
 
