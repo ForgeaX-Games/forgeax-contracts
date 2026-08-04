@@ -5,7 +5,9 @@
  * 子模块，或 `from '@forgeax/types'` 拿 namespaces。
  */
 export * from './i18n';
+export * from './extension-id';
 export * from './manifest';
+export * from './page';
 export * from './agent';
 export * from './skill';
 export * from './tool';

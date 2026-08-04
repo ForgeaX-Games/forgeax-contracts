@@ -18,6 +18,8 @@
  */
 import { z } from 'zod';
 import { I18nStringSchema } from './i18n';
+import { ExtensionIdSchema, SemverLikeSchema } from './extension-id';
+import { PageContributionsSchema } from './page';
 import { ManifestSkillEntrySchema } from './skill';
 import { ManifestToolEntrySchema } from './tool';
 import {
@@ -31,14 +33,7 @@ import {
  * ==========================================================================*/
 
 // 第二段起始字符允许 `_`，用于约定俗成的 `_template` / `_archive` 等隐藏样板。
-const ExtensionIdSchema = z
-  .string()
-  .min(1)
-  .regex(/^@[a-z0-9][a-z0-9-]*\/[a-z0-9_][a-z0-9-_]*$/u, {
-    message: 'extension id must be `@scope/name` (lowercase, kebab/snake; name may start with `_` for templates)',
-  });
-
-const SemverLikeSchema = z.string().min(1); // 不严格校验 semver；loader 层再说
+export { ExtensionIdSchema, SemverLikeSchema } from './extension-id';
 
 const AuthorSchema = z.object({
   name: z.string().min(1),
@@ -361,7 +356,35 @@ export const ManifestSchema = z.discriminatedUnion('kind', [
   ToolManifestSchema,
 ]);
 
+/**
+ * Manifest v2 is capability-shaped: packaging categories never gate which
+ * contribution families an extension may publish.
+ */
+export const ManifestV2ContributionsSchema = PageContributionsSchema.extend({
+  agents: z.array(ProvidesAgentSchema).optional(),
+  skills: z.array(ManifestSkillEntrySchema).optional(),
+  tools: z.array(ManifestToolEntrySchema).optional(),
+  events: z.array(EventDeclSchema).optional(),
+  surfaces: z.array(ProvidesSurfaceSchema).optional(),
+  commands: z.array(ManifestCommandCapabilitySchema).optional(),
+  mcp: z.array(ManifestMcpCapabilitySchema).optional(),
+  memory: z.array(ManifestMemoryCapabilitySchema).optional(),
+  cliProviders: z.array(ProvidesCliProviderSchema).optional(),
+  modelBindings: z.array(ProvidesModelBindingSchema).optional(),
+});
+
+export const ManifestV2Schema = z.object({
+  ...ManifestBase,
+  schemaVersion: z.literal(2),
+  categories: z.array(z.string().min(1)).optional(),
+  contributes: ManifestV2ContributionsSchema,
+}).strict();
+
+export const AnyManifestSchema = z.union([ManifestV2Schema, ManifestSchema]);
+
 export type ExtensionManifest = z.infer<typeof ManifestSchema>;
+export type ExtensionManifestV2 = z.infer<typeof ManifestV2Schema>;
+export type AnyExtensionManifest = z.infer<typeof AnyManifestSchema>;
 export type WorkbenchManifest = z.infer<typeof WorkbenchManifestSchema>;
 export type AgentManifest = z.infer<typeof AgentManifestSchema>;
 export type SkillManifest = z.infer<typeof SkillManifestSchema>;
@@ -391,4 +414,84 @@ export function parseManifest(input: unknown): ManifestParseResult {
     warnings.push('description missing — Settings UI will fall back to displayName');
   }
   return { ok: true, manifest: m, warnings };
+}
+
+export interface AnyManifestParseResult {
+  ok: boolean;
+  manifest?: AnyExtensionManifest;
+  error?: z.ZodError;
+  warnings: string[];
+}
+
+export function parseAnyManifest(input: unknown): AnyManifestParseResult {
+  const result = AnyManifestSchema.safeParse(input);
+  const warnings: string[] = [];
+  if (!result.success) return { ok: false, error: result.error, warnings };
+  if (result.data.description === undefined) {
+    warnings.push('description missing — Settings UI will fall back to displayName');
+  }
+  return { ok: true, manifest: result.data, warnings };
+}
+
+/** Normalize the sanctioned v1 compatibility shape at the scanner boundary. */
+export function normalizeManifest(manifest: AnyExtensionManifest): ExtensionManifestV2 {
+  if (manifest.schemaVersion === 2) return manifest;
+
+  const shared = manifest.provides;
+  const contributes: z.input<typeof ManifestV2ContributionsSchema> = {
+    ...('agents' in shared && shared.agents ? { agents: shared.agents } : {}),
+    ...('agent' in shared && shared.agent ? { agents: [shared.agent] } : {}),
+    ...('skills' in shared && shared.skills ? { skills: shared.skills } : {}),
+    ...('tools' in shared && shared.tools ? { tools: shared.tools } : {}),
+    ...('events' in shared && shared.events ? { events: shared.events } : {}),
+    ...('surfaces' in shared && shared.surfaces ? { surfaces: shared.surfaces } : {}),
+    ...('commands' in shared && shared.commands ? { commands: shared.commands } : {}),
+    ...('mcp' in shared && shared.mcp ? { mcp: shared.mcp } : {}),
+    ...('memory' in shared && shared.memory ? { memory: shared.memory } : {}),
+    ...('cliProvider' in shared && shared.cliProvider ? { cliProviders: [shared.cliProvider] } : {}),
+    ...('modelBinding' in shared && shared.modelBinding ? { modelBindings: [shared.modelBinding] } : {}),
+  };
+
+  if (manifest.kind === 'workbench') {
+    const localId = manifest.provides.workbench.id.replace(/^wb:/u, '').replace(/[^a-z0-9.-]+/gu, '-') || 'main';
+    const panelId = `${localId}.content`;
+    contributes.panelTypes = [{
+      id: panelId,
+      runtime: manifest.entry?.standalone ? 'iframe' : 'inline',
+      entry: manifest.entry?.frontend ?? manifest.entry?.standalone?.readyProbe ?? './index.html',
+    }];
+    contributes.pages = [{
+      id: localId,
+      title: manifest.displayName,
+      icon: manifest.provides.workbench.icon ?? manifest.icon,
+      cardinality: 'singleton',
+      restorePolicy: 'project',
+      layout: `legacy:${localId}`,
+      layoutVersion: 1,
+      panels: [{ id: 'content', panelType: { extension: 'self', id: panelId } }],
+    }];
+    if (!manifest.provides.workbench.hidden) {
+      contributes.activities = [{
+        id: `${localId}.launcher`,
+        title: manifest.displayName,
+        icon: manifest.provides.workbench.icon ?? manifest.icon,
+        order: manifest.provides.workbench.position,
+        category: 'workbench',
+        pageType: { extension: 'self', id: localId },
+      }];
+    }
+  }
+
+  const {
+    kind: _kind,
+    provides: _provides,
+    schemaVersion: _schemaVersion,
+    ...base
+  } = manifest;
+  return ManifestV2Schema.parse({
+    ...base,
+    schemaVersion: 2,
+    categories: [manifest.kind],
+    contributes,
+  });
 }

@@ -104,6 +104,27 @@ export type TurnMessage =
     }
   | { role: 'tool'; callId: string; ok: boolean; result?: unknown; error?: string };
 
+export interface HistoryCursor {
+  shard: number;
+  line: number;
+  eventId: string;
+}
+
+export type HistoryIntake =
+  | { kind: 'structured'; nativeResume: false }
+  | { kind: 'text-bridge'; nativeResume: true };
+
+export interface PreparedHistory {
+  mode: 'none' | 'snapshot' | 'delta' | 'authoritative';
+  messages: TurnMessage[];
+  patchId: string;
+  laneId?: string;
+  epoch?: number;
+  through?: HistoryCursor;
+  estimatedTokens: number;
+  redactedParts: number;
+}
+
 /** prompt assembly (设计稿 §2.4, bound to prompt-cache B): `charter`+`persona`
  *  form the stable cached prefix; `dynamicSuffix` (active-game note / L1
  *  perception) is injected as a USER-message suffix, never into the system
@@ -194,6 +215,8 @@ export interface TurnRequest {
    *  Absent ⇒ kernel falls back to its own continuation (backward-compatible).
    *  Additive (frozen-allowed). See 历史归属与上下文所有权-取舍方案.md. */
   history?: TurnMessage[];
+  /** Host decision that produced `history`; kernels must not reinterpret it. */
+  historyPlan?: PreparedHistory;
   systemPrompt: ComposedPrompt;
   /** Dual-delivered tools (see ToolSpec). */
   tools: ToolSpec[];
