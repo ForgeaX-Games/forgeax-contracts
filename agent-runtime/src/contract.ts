@@ -371,7 +371,13 @@ export type KernelEvent =
   | { kind: 'x.subagent.start'; agentId: string; agentType?: string; role?: string; depth: number }
   | { kind: 'x.subagent.turn'; agentId: string; turn: number }
   | { kind: 'x.subagent.tool'; agentId: string; callId: string; name: string }
-  | { kind: 'x.subagent.done'; agentId: string; reason: string; turns: number; toolCalls: number };
+  | { kind: 'x.subagent.done'; agentId: string; reason: string; turns: number; toolCalls: number }
+  /** 租用内核(codex/claude-code…)自己也写一份原生转录,落在它自己的 home 下、
+   *  按**内核侧** thread id 命名 —— 那份含模型视角的完整素材(系统提示词、模型
+   *  原始输出、观察、真实时间戳),是产品账本没有的。此事件把「本会话 ↔ 那份
+   *  转录」的指针落进账本;不落盘的话该映射只活在内核进程的内存 Map 里,重启即断,
+   *  事后只能靠时间戳猜。首次捕获时发一次即可(resume 不重发)。 */
+  | { kind: 'x.kernel.thread'; kernelId: string; threadId: string; kernelThreadId: string; transport: 'exec' | 'app-server' };
 
 /** All `kind` literals of KernelEvent, kept in sync with the union by a
  *  compile-time exhaustiveness check in the test suite (and by
