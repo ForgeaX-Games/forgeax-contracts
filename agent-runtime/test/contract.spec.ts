@@ -123,13 +123,12 @@ describe('KernelEvent union', () => {
     { kind: 'x.subagent.turn', agentId: 'iori', turn: 2 },
     { kind: 'x.subagent.tool', agentId: 'iori', callId: 'c', name: 'bash' },
     { kind: 'x.subagent.done', agentId: 'iori', reason: 'stop', turns: 3, toolCalls: 4 },
-    { kind: 'x.kernel.thread', kernelId: 'codex', threadId: 't', kernelThreadId: 'ct', transport: 'exec' },
   ];
 
-  it('constructs all 19 kinds', () => {
-    expect(samples).toHaveLength(19);
+  it('constructs all 18 kinds', () => {
+    expect(samples).toHaveLength(18);
     const kinds = new Set(samples.map((s) => s.kind));
-    expect(kinds.size).toBe(19);
+    expect(kinds.size).toBe(18);
   });
 
   it('handles every kind exhaustively (compile-time never guard)', () => {
@@ -155,7 +154,6 @@ describe('KernelEvent union', () => {
         case 'x.subagent.turn':
         case 'x.subagent.tool':
         case 'x.subagent.done':
-        case 'x.kernel.thread':
           return ev.kind;
         default: {
           const _never: never = ev;
