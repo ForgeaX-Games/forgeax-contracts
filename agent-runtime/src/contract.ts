@@ -305,6 +305,19 @@ export type PermissionDecision =
  *    unrestricted → bypass the gate (native 'bypassPermissions') */
 export type PermissionMode = 'gated' | 'autoEdits' | 'planning' | 'unrestricted';
 
+/** Static permission surface owned by one kernel.
+ *
+ * The orchestration layer aggregates this metadata for the Settings API, but
+ * it must not maintain a second hand-written capability table. A kernel owns
+ * the modes it can actually translate and any honest UI warning attached to
+ * a less permissive mode.
+ */
+export interface KernelPermissionCapabilities {
+  readonly supported: readonly PermissionMode[];
+  readonly defaultMode: PermissionMode;
+  readonly lowGearHangs?: boolean;
+}
+
 // ─── hooks (fire-and-forget) ─────────────────────────────────────────
 
 export interface HookEndpoint {
@@ -475,6 +488,8 @@ export interface KernelCapabilityCatalog {
 export interface AgentKernel {
   readonly id: KernelId;
   readonly capabilities: KernelCapabilities;
+  /** Static permission capability declaration owned by this kernel. */
+  readonly permissionCapabilities?: KernelPermissionCapabilities;
   /** Human-facing name for picker rows / driver labels. Absent ⇒ UI shows `id`. */
   readonly displayName?: string;
   /** Run one turn. `usage` MUST be emitted before `turn.done`, including on
