@@ -1,23 +1,28 @@
 {
   "name": "@forgeax/agent-runtime",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.1",
   "type": "module",
   "description": "Agent runtime — owns the chat loop, tool dispatch, and persona application. Phase C1 ships the public API contract; daemon implementation migrates from packages/cli/ in follow-up PRs.",
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
   "exports": {
-    ".": "./src/index.ts",
-    "./driver": "./src/driver.ts",
-    "./session": "./src/session.ts",
-    "./contract": "./src/contract.ts",
-    "./noop-kernel": "./src/noop-kernel.ts"
+    ".": "./dist/index.js",
+    "./driver": "./dist/driver.js",
+    "./session": "./dist/session.js",
+    "./contract": "./dist/contract.js",
+    "./noop-kernel": "./dist/noop-kernel.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
   "dependencies": {
-    "@forgeax/types": "workspace:*"
+    "@forgeax/types": "0.1.1"
   },
   "devDependencies": {
     "@types/bun": "^1.3.13",

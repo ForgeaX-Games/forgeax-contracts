@@ -11,7 +11,7 @@
     },
     "agent-runtime": {
       "name": "@forgeax/agent-runtime",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@forgeax/types": "workspace:*",
       },
@@ -22,7 +22,7 @@
     },
     "types": {
       "name": "@forgeax/types",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "zod": "^3.25.0",
         "zod-to-json-schema": "^3.25.0",
