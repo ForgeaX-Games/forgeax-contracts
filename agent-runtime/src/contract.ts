@@ -341,10 +341,24 @@ export type TurnDoneReason =
  *  (they have no native representation). */
 export type KernelEvent =
   | { kind: 'message.delta'; role: 'assistant'; text: string }
-  | { kind: 'thinking.delta'; text: string }
-  | { kind: 'tool.call'; callId: string; name: string; args: unknown }
-  | { kind: 'tool.call.delta'; callId: string; name: string; argsDelta: string }
-  | { kind: 'tool.result'; callId: string; ok: boolean; result?: unknown; error?: string }
+  | {
+      kind: 'thinking.delta';
+      text: string;
+      /** Raw provider reasoning stays private; only a host/provider-authored
+       * concise summary may be projected into the user-visible work trace. */
+      visibility?: 'public_summary' | 'private_reasoning';
+    }
+  | { kind: 'tool.call'; callId: string; name: string; rawName?: string; args: unknown }
+  | { kind: 'tool.call.delta'; callId: string; name: string; rawName?: string; argsDelta: string }
+  | {
+      kind: 'tool.result';
+      callId: string;
+      name?: string;
+      rawName?: string;
+      ok: boolean;
+      result?: unknown;
+      error?: string;
+    }
   | {
       kind: 'turn.usage';
       inputTokens?: number;
