@@ -5,8 +5,8 @@
  */
 import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { listManifests, validate } from './validate-manifests';
+import { join, resolve } from 'node:path';
+import { findRepoRoot, listManifests, validate } from './validate-manifests';
 
 const TMP = `/tmp/forgeax-validate-manifests-flat-${process.pid}`;
 
@@ -15,32 +15,19 @@ afterEach(() => {
 });
 
 describe('listManifests · flat extension layout', () => {
-  it('discovers flat forgeax-extension.json files without a Studio checkout', () => {
-    mkdirSync(join(TMP, 'packages', 'marketplace', 'extensions', 'admin'), { recursive: true });
-    mkdirSync(join(TMP, 'packages', 'marketplace', 'extensions', 'wb-demo'), { recursive: true });
-    for (const [slug, id] of [['admin', '@forgeax-extension/admin'], ['wb-demo', '@forgeax-extension/wb-demo']]) {
-      writeFileSync(
-        join(TMP, 'packages', 'marketplace', 'extensions', slug, 'forgeax-extension.json'),
-        JSON.stringify({
-          schemaVersion: 1,
-          id,
-          version: '0.1.0',
-          kind: 'workbench',
-          displayName: slug,
-          provides: { workbench: { id: slug } },
-        }),
-      );
-    }
+  it('discovers real Marketplace forgeax-extension.json under extensions/<slug>/', () => {
+    const repoRoot = findRepoRoot(resolve(import.meta.dirname, '..'));
+    const files = listManifests(repoRoot);
 
-    const files = listManifests(TMP).filter((file) =>
-      file.startsWith(join(TMP, 'packages/marketplace/extensions'))
+    expect(files.length).toBeGreaterThan(10);
+    const marketplaceFiles = files.filter((f) =>
+      f.includes('/packages/marketplace/extensions/')
     );
-
-    expect(files.sort()).toEqual([
-      join(TMP, 'packages/marketplace/extensions/admin/forgeax-extension.json'),
-      join(TMP, 'packages/marketplace/extensions/wb-demo/forgeax-extension.json'),
-    ]);
-    expect(files.every((f) => f.endsWith('/forgeax-extension.json'))).toBe(true);
+    expect(marketplaceFiles.length).toBeGreaterThan(10);
+    expect(marketplaceFiles.every((f) => f.endsWith('/forgeax-extension.json'))).toBe(true);
+    expect(marketplaceFiles.some((f) => f.endsWith('/extensions/admin/forgeax-extension.json'))).toBe(true);
+    expect(marketplaceFiles.some((f) => f.includes('/plugins/'))).toBe(false);
+    expect(marketplaceFiles.some((f) => f.endsWith('forgeax-plugin.json'))).toBe(false);
   });
 
   it('discovers only depth-one slug dirs (not nested apps/ fixtures)', () => {

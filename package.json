@@ -1,6 +1,6 @@
 {
   "name": "@forgeax/contracts",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "forgeax neutral contract closure — container for two independently-consumed packages: @forgeax/types (shared zod schemas + TS contracts) and @forgeax/agent-runtime (the neutral DIP registry between the core kernel and the cli orchestration layer). Independently cloneable; also consumed as bun workspace members by cli / core / server.",
@@ -9,13 +9,9 @@
     "agent-runtime"
   ],
   "scripts": {
-    "accept:tarballs": "node scripts/accept-release-tarballs.mjs",
     "typecheck": "bun -F @forgeax/types typecheck && bun -F @forgeax/agent-runtime typecheck",
     "test": "bun -F @forgeax/types test && bun -F @forgeax/agent-runtime test",
-    "lint": "bun -F @forgeax/types check:npc-schema-drift",
-    "build": "node scripts/build-packages.mjs",
-    "check:publish-contract": "bun test test/npm-publish-contract.test.ts",
-    "pack:all": "node scripts/pack-packages.mjs"
+    "lint": "bun -F @forgeax/types check:npc-schema-drift"
   },
   "devDependencies": {
     "@types/bun": "^1.3.13",

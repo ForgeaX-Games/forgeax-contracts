@@ -1,35 +1,31 @@
 {
   "name": "@forgeax/types",
-  "version": "0.1.1",
+  "version": "0.1.0",
+  "private": true,
   "type": "module",
   "description": "Shared zod schemas + TS contracts for forgeax-extension.json, agent/skill/tool/host-sdk. Single source of truth for ExtensionManifest validation across server / interface / cli.",
-  "main": "./dist/index.js",
+  "main": "src/index.ts",
   "exports": {
-    ".": "./dist/index.js",
-    "./manifest": "./dist/manifest.js",
-    "./page": "./dist/page.js",
-    "./agent": "./dist/agent.js",
-    "./skill": "./dist/skill.js",
-    "./tool": "./dist/tool.js",
-    "./host-sdk": "./dist/host-sdk.js",
-    "./observability": "./dist/observability.js",
-    "./permission-rules": "./dist/permission-rules.js",
-    "./shell-split": "./dist/shell-split.js",
-    "./visual-generation": "./dist/visual-generation.js",
-    "./npc-protocol": "./dist/npc-protocol.js",
-    "./npc-tools": "./dist/npc-tools.js",
+    ".": "./src/index.ts",
+    "./manifest": "./src/manifest.ts",
+    "./page": "./src/page.ts",
+    "./agent": "./src/agent.ts",
+    "./skill": "./src/skill.ts",
+    "./tool": "./src/tool.ts",
+    "./host-sdk": "./src/host-sdk.ts",
+    "./observability": "./src/observability.ts",
+    "./permission-rules": "./src/permission-rules.ts",
+    "./shell-split": "./src/shell-split.ts",
+    "./visual-generation": "./src/visual-generation.ts",
+    "./npc-protocol": "./src/npc-protocol.ts",
+    "./npc-tools": "./src/npc-tools.ts",
     "./schemas/npc/*": "./schemas/npc/*",
-    "./capability": "./dist/capability.js",
-    "./deliver-summary": "./dist/deliver-summary.js",
-    "./artifact-summary": "./dist/artifact-summary.js"
+    "./capability": "./src/capability.ts"
   },
   "files": [
-    "dist",
+    "src",
     "schemas"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",

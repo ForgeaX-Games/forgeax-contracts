@@ -22,7 +22,6 @@ import { ExtensionIdSchema, SemverLikeSchema } from './extension-id';
 import { PageContributionsSchema } from './page';
 import { ManifestSkillEntrySchema } from './skill';
 import { ManifestToolEntrySchema } from './tool';
-import { WriteGlobsSchema } from './agent';
 import {
   ManifestCommandCapabilitySchema,
   ManifestMcpCapabilitySchema,
@@ -134,8 +133,6 @@ const ProvidesAgentSchema = z.object({
   personaFile: z.string().min(1),
   memoryDir: z.string().optional(),
   produces: z.array(z.string()).optional(),
-  /** Host-enforced mutation ceiling. Omitted external declarations normalize to []. */
-  writeGlobs: WriteGlobsSchema.optional(),
   preferredCliProvider: z.string().optional(),
   defaultLang: z.enum(['zh', 'en']).optional(),
   multiInstance: z.boolean().optional(),

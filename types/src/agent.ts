@@ -14,26 +14,6 @@ import { SkillRefSchema } from './skill';
 export const ProviderIdSchema = z.string().min(1);
 export type ProviderId = z.infer<typeof ProviderIdSchema>;
 
-/** Host-enforced project-relative POSIX mutation ceiling. */
-export const WriteGlobsSchema = z.array(z.string().min(1)).superRefine((values, ctx) => {
-  const seen = new Set<string>();
-  for (const value of values) {
-    if (seen.has(value)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `duplicate writeGlobs pattern: ${value}` });
-    }
-    seen.add(value);
-    if (value.startsWith('/') || value.startsWith('!') || value.includes('\\')) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `writeGlobs must be project-relative positive POSIX globs: ${value}` });
-    }
-    if (value.split('/').some((part) => part === '..' || part.length === 0)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `writeGlobs cannot contain empty or parent segments: ${value}` });
-    }
-    if (value.includes('<') && value !== '<active_game>.dir' && value !== '<active_game>.dir/**' && !value.startsWith('<active_game>.dir/')) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `unresolved writeGlobs variable: ${value}` });
-    }
-  }
-});
-
 export const AgentCardSchema = z.object({
   name: I18nStringSchema,
   /** 中文职能（如「核心玩法师」）。UI 把它和 name(英文名) 拼成标题「中文职能·英文名」。
@@ -80,8 +60,6 @@ export interface AgentAvatarState {
   state: string;
   /** webm URL (loader 解析 file 字段 → /api/files/raw?path=... 形式). */
   url: string;
-  /** HEVC-with-alpha URL；供不能可靠合成透明 VP9 的 macOS WKWebView 使用。 */
-  desktopUrl?: string;
   loop: boolean;
   fadeInMs: number;
   /** 播完跳到哪个 state (非 loop 用或瞬态强制超时跳转). */
@@ -110,8 +88,6 @@ export const AgentDefinitionSchema = z.object({
   personaFile: z.string().min(1),
   memoryDir: z.string().optional(),
   produces: z.array(z.string()).optional(), // glob
-  /** Host-enforced project-relative mutation ceiling; omission is read-only. */
-  writeGlobs: WriteGlobsSchema.optional(),
   preferredCliProvider: ProviderIdSchema.optional(),
   defaultLang: z.enum(['zh', 'en']).default('zh'),
   multiInstance: z.boolean().default(false),
